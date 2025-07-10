@@ -1,0 +1,167 @@
+from qdrant_client import QdrantClient
+
+qdrant_client = QdrantClient(
+    url="https://977135f1-f9a6-4273-a5f2-7e3768956e02.us-west-1-0.aws.cloud.qdrant.io:6333", 
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.83OUaURiJVmEKYZwVYiRx1d2m7zO0TcZOToIM6EZYFQ",
+)
+
+print(qdrant_client.get_collections())
+
+API = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.83OUaURiJVmEKYZwVYiRx1d2m7zO0TcZOToIM6EZYFQ
+
+
+
+
+
+app = FastAPI()
+
+
+def extract_intercom_data(payload):
+    try:
+        # ✅ 1. Get latest message (cleaned from HTML)
+        parts = payload["data"]["item"].get("conversation_parts", {}).get("conversation_parts", [])
+        if parts:
+            latest_message_html = parts[-1].get("body", "")
+        else:
+            latest_message_html = payload["data"]["item"]["source"].get("body", "")
+
+        clean_message = BeautifulSoup(latest_message_html, "html.parser").get_text()
+
+        # ✅ 2. Get user ID
+        user_id = payload["data"]["item"]["source"]["author"]["id"]
+
+        # ✅ 3. Get conversation ID (needed for reply)
+        conversation_id = payload["data"]["item"]["id"]
+
+        print("📨 Clean Message:", clean_message)
+        print("👤 User ID:", user_id)
+        print("💬 Conversation ID:", conversation_id)
+
+        return {
+            "message": clean_message,
+            "user_id": user_id,
+            "conversation_id": conversation_id
+        }
+
+    except Exception as e:
+        print("❌ Error parsing Intercom webhook:", e)
+        return None
+
+
+
+
+# @app.post("/query")
+# async def webhook_handler(request: Request):
+#     payload = await request.json()
+#     # print(payload)
+#     try:
+#         print(extract_intercom_data(payload))
+#     except Exception as e:
+#         print("Some error occur")
+    # try:
+    #     # Extract message body from webhook
+    #     latest_parts = payload.get("data", {}) \
+    #                   .get("item", {}) \
+    #                   .get("conversation_parts", {}) \
+    #                   .get("conversation_parts", [])
+    #     if latest_parts:
+    #         latest_message_html = latest_parts[-1].get("body", "")
+    #     else:
+    #         latest_message_html = payload.get("data", {}) \
+    #                                     .get("item", {}) \
+    #                                     .get("source", {}) \
+    #                                     .get("body", "")
+        
+    #     clean_message = BeautifulSoup(latest_message_html, "html.parser").get_text()
+
+    #     print("📩 Clean Message:", clean_message)
+
+        # Run through your QA chain
+        # response = qa_chain.invoke(clean_message)
+
+        # print("📤 Response:", response['result'])
+
+    # except Exception as e:
+    #     return JSONResponse(status_code=500, content={"error": str(e)})
+
+# if __name__ == "__main__":
+#     uvicorn.run("main:app", host="0.0.0.0", port=3000, reload=True)
+
+
+
+
+
+
+
+
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from langchain.chains import ConversationalRetrievalChain
+from langchain_openai import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain_community.vectorstores import Qdrant
+from langchain.embeddings.openai import OpenAIEmbeddings
+import os
+
+# Set your API key
+os.environ["OPENAI_API_KEY"] = "sk-..."
+
+app = FastAPI()
+user_memory_store = {}
+
+# Dummy retriever: Replace with your actual Qdrant retriever
+def get_retriever():
+    embeddings = OpenAIEmbeddings()
+    qdrant = Qdrant(
+        url="https://YOUR_QDRANT_URL",
+        api_key="YOUR_QDRANT_API_KEY",
+        collection_name="chatbot",
+        embeddings=embeddings,
+    )
+    return qdrant.as_retriever()
+
+retriever = get_retriever()
+
+def get_memory_for_user(user_id: str):
+    if user_id not in user_memory_store:
+        user_memory_store[user_id] = ConversationBufferMemory(return_messages=True)
+    return user_memory_store[user_id]
+
+def get_chain_for_user(user_id: str):
+    memory = get_memory_for_user(user_id)
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.5)
+    return ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        memory=memory
+    )
+
+class Query(BaseModel):
+    user_id: str
+    question: str
+
+@app.post("/chat")
+def chat_endpoint(query: Query):
+    chain = get_chain_for_user(query.user_id)
+    response = chain.invoke({"question": query.question})
+    return {"response": response["answer"]}
+
+
+
+qa_chain = RetrievalQA.from_chain_type(
+#     llm=model,
+#     retriever=retriever,
+#     chain_type="stuff",  # stuff just inserts all docs into one input
+#     chain_type_kwargs={"prompt": prompt}
+# )
+
+# while True:
+#     query = input("Enter your query: ")
+#     if query.lower() == "exit":
+#         break
+    
+#     # Run the QA chain with the user query
+#     response = qa_chain.invoke(query)
+    
+#     # Print the response from the model
+#     print("Response:", response['result'] )
