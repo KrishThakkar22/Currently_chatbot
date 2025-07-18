@@ -15,3 +15,4 @@ uvicorn
 time
 langchain-community
 sentence-transformer
+python==3.11.9
